@@ -2,7 +2,8 @@
 
 Code for the paper *Reliable Radiology Report Generation with
 Anatomy-Pathology-Aware Dynamic Reasoning and Representation
-Calibration*.
+Calibration*, currently under double-blind review at ACM Multimedia
+2026.
 
 APA-RRG is an anatomy-pathology-aware framework for radiology report
 generation that emulates the progressive workflow of a radiologist
@@ -119,6 +120,29 @@ The script reads the PromptMRG-style annotation file and writes an
 deterministic given the input annotation, so any execution reproduces
 the exact same prior.
 
+## Pretrained Weights
+
+We provide two checkpoints for different use cases. Both were trained
+with images from [R2Gen](https://github.com/zhjohnchan/R2Gen). If you
+use images processed by yourself, you may obtain degraded performance
+with these weights. In this case, you need to train a model by
+yourself.
+
+**APA-RRG (ours).** The fully trained APA-RRG model, which can be used
+for direct evaluation or as a warm-start for further training. All
+modules (DAP-G, PARC, APG) are included. Download from
+[Google Drive](https://drive.google.com/file/d/1lliZlxwVAlpZk6clUxs-6EE42jdT8o-K/view?usp=drive_link)
+and place it under `results/apa_rrg/`.
+
+**PromptMRG backbone.** The base PromptMRG checkpoint released by its
+original authors, containing only the visual encoder, memory module,
+classification head, and text decoder. DAP-G, PARC, and APG weights
+are not included and will be randomly initialized. This checkpoint can
+only be used as a warm-start for training. Download
+`model_promptmrg_20240305.pth` from
+[Google Drive](https://drive.google.com/file/d/1s4AoLnnGOysOQkdILhhFCL59LyQtRHGa/view?usp=drive_link)
+and place it under `results/model_promptmrg/`.
+
 ## Training
 
 A single command launches end-to-end training on MIMIC-CXR:
@@ -131,17 +155,10 @@ All hyperparameters are documented inline within the shell script and
 should not need to be edited for reproduction. Trained checkpoints are
 written to `results/apa_rrg/`.
 
-**Optional warm-start.** Convergence speed can be improved by
-initializing the visual backbone from the public PromptMRG checkpoint
-released by its authors. To use this option, fetch
-`model_promptmrg_20240305.pth` from
-[Google Drive](https://drive.google.com/file/d/1s4AoLnnGOysOQkdILhhFCL59LyQtRHGa/view?usp=drive_link)
-and place it under `results/model_promptmrg/`. Be aware that the
-released weights were produced using the
-[R2Gen](https://github.com/zhjohnchan/R2Gen) image preprocessing
-pipeline; if your images come from a different pipeline, performance
-may degrade. To skip the warm-start entirely, override
-`--load_pretrained ""` inside `train_mimic_cxr.sh`.
+By default the script warm-starts from the PromptMRG backbone. To
+warm-start from the fully trained APA-RRG checkpoint instead, change
+the `--load_pretrained` path inside the script. To skip warm-starting
+entirely, set `--load_pretrained ""`.
 
 ## Evaluation
 
