@@ -32,6 +32,9 @@ from models.structure_loss import StructureLoss
 warnings.filterwarnings("ignore")
 
 
+STATE_TOKENS = ["[BLA]", "[POS]", "[NEG]", "[UNC]"]
+
+
 class BLIP_Decoder(nn.Module):
     """End-to-end APA-RRG model."""
 
@@ -167,7 +170,7 @@ class BLIP_Decoder(nn.Module):
         cls_preds = self.cls_head(cls_features).view(-1, 4, 18)
 
         if self.dap_graph is not None:
-            # Eq. 1 expects softmax probabilities over the four states.
+            # expects softmax probabilities over the four states.
             disease_probs = F.softmax(cls_preds, dim=1).permute(0, 2, 1)
             graph_feats = self.dap_graph(disease_probs, visual_features=avg_embeds)
             hs = hs + torch.sigmoid(self.dap_graph.scale) * graph_feats
@@ -189,7 +192,7 @@ class BLIP_Decoder(nn.Module):
         image_embeds, _, _, cls_preds = self._encode_and_classify(image, clip_memory)
 
         # Logit adjustment over the POS channel using base disease rates
-        # (Eq. 9). base_probs is a length-18 numpy array.
+        # base_probs is a length-18 numpy array.
         if base_probs is not None and len(base_probs) > 0:
             base_probs_tensor = torch.from_numpy(base_probs).to(image.device).float()
             base_probs_tensor = torch.clamp(base_probs_tensor, min=1e-6, max=1.0)
@@ -252,13 +255,25 @@ class BLIP_Decoder(nn.Module):
         cls_preds_softmax = F.softmax(cls_preds, dim=1)
         cls_preds_logits = cls_preds_softmax[:, 1, :14]  # POS prob, 14 CheXpert
 
-        # Build prompts (Eq. 6 and Eq. 7) from the predicted positive
-        # probabilities. The 14 CheXpert pathologies determine the regional
-        # scores; auxiliary nodes do not contribute.
+        # Build prompts from the predicted probabilities. Each sample
+        # receives the six APG region tokens followed by
+        # the eighteen per-disease state tokens drawn from the
+        # argmax over {BLA, POS, NEG, UNC} of the refreshed classification
+        # logits. The two segments are concatenated before being fed to
+        # the decoder so that the generated report is conditioned on both
+        # anatomical structure and fine-grained disease evidence.
         threshold = getattr(self.args, "apg_threshold", 0.5)
+        state_argmax = cls_preds_softmax.argmax(dim=1)  # [B, 18], values in {0,1,2,3}
         prompts = []
         for j in range(image.size(0)):
-            prompts.append(build_prompt_from_probs(cls_preds_logits[j], threshold=threshold))
+            region_prompt = build_prompt_from_probs(
+                cls_preds_logits[j], threshold=threshold
+            )
+            state_prompt = (
+                " ".join(STATE_TOKENS[int(state_argmax[j, i])] for i in range(18))
+                + " "
+            )
+            prompts.append(region_prompt + state_prompt)
 
         if not sample:
             image_embeds = image_embeds.repeat_interleave(num_beams, dim=0)
