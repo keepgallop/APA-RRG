@@ -19,6 +19,8 @@ from modules import utils
 from modules.metrics import compute_scores
 from modules.tester import Tester
 
+STATE_TOKENS = ["[BLA]", "[POS]", "[NEG]", "[UNC]"]
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -65,8 +67,6 @@ def parse_args():
 
     parser.add_argument("--clip_k", type=int, default=21)
 
-    # Module switches (must match the configuration the checkpoint was
-    # trained with).
     parser.add_argument("--use_dap_graph", action="store_true")
     parser.add_argument("--use_parc", action="store_true")
     parser.add_argument("--use_apg", action="store_true")
@@ -95,6 +95,7 @@ def setup_tokenizer():
     APG region tokens. The set of added tokens must match the one used by
     main_train.py so that the checkpoint vocabulary aligns.
     """
+
     from transformers import BertTokenizer
 
     bert_model_name = "bert-base-uncased"
@@ -173,7 +174,8 @@ def main():
     )[0]
 
     print("\n[Building] Model...")
-    prompt_temp = empty_prompt()
+   
+    prompt_temp = empty_prompt() + " ".join([STATE_TOKENS[0]] * 18) + " "
     model = blip_decoder(
         args,
         tokenizer,
